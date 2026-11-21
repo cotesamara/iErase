@@ -1,10 +1,13 @@
 from PIL import Image
-from image_processing_old import remove_background
+from image_processing_sammy import remove_solid_background, ai_remove_background
 
-image = Image.open("assets/sample_input.png")
+gif = Image.open("assets/sample.gif")
+gif.seek(2)
 
-result = remove_background(image)
+no_ai_result = remove_solid_background(gif)
+ai_result = ai_remove_background(gif)
 
-result.save("outputs/sample_output.png")
+no_ai_result.save("outputs/sample_output-_aiSammy.png")
+ai_result.save("outputs/sample_output_noaiSammy.png")
 
 print("Background removed successfully!")
