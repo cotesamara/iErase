@@ -12,14 +12,13 @@ def remove_background(image):
     print("Starting pixel:", start_pixel)
 
 
-    # Flood fill starts at (0, 0)
+    # ff  starts at (0, 0)
     # it checks connected pixels with similar colours
     # instead of removing every white pixel in the image
     ImageDraw.floodfill(
         image,
-        xy=(0, 0),              # Starting position
-        value=(255, 255, 255, 0), # Make the background transparent
-        thresh=20               # Allow some colour differences
+        xy=(0, 0),              # starting position
+        value=(255, 255, 255, 0), # make the background transparent
+        thresh=20               # allow some colour differences
     )
-    # Return the processed image
     return image
