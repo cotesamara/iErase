@@ -1,25 +1,25 @@
 
-from PIL import Image
+from PIL import Image, ImageDraw
 #
 def remove_background(image):
      # Convert the image to RGBA so it supports transparency
     # R=red and G=geen and guess waht B is blue a new thingy here is  A = Alpha which is transparency
     image = image.convert("RGBA") 
 
-    #loop through every row of pixels yis our vertical position and x is our horizontal position
-    for y in range(image.height):
-        for x in range(image.width):
+
+    # Read the colour of the pixel in the top left corner for the flood fill algorithm
+    start_pixel = image.getpixel((0, 0))
+    print("Starting pixel:", start_pixel)
 
 
-            # Get the RGBA values of the pixel at pos x and y
-            # each value can be from 0 to 255
-            r, g, b, a = image.getpixel((x, y))
-
-
-            # Make the pixel transparent alpha = 0
-            # Keep its original RGB values unchanged cause we dont want to mess upt he first image
-            # alpha 0 = invisible and alpha 255 = fully visible
-            if r > 240 and g > 240 and b > 240:
-                image.putpixel((x, y), (r, g, b, 0))
-
+    # Flood fill starts at (0, 0)
+    # it checks connected pixels with similar colours
+    # instead of removing every white pixel in the image
+    ImageDraw.floodfill(
+        image,
+        xy=(0, 0),              # Starting position
+        value=(255, 255, 255, 0), # Make the background transparent
+        thresh=20               # Allow some colour differences
+    )
+    # Return the processed image
     return image

@@ -1,6 +1,6 @@
 
 from PIL import Image
-from image_processing import remove_background
+from image_processing_old import remove_background
 
 image = Image.open("assets/sample_input.png")
 
