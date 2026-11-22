@@ -1,6 +1,33 @@
 from PIL import Image, ImageDraw, ImageFilter
 
+#----------------------------------------------ai shit---------------------------------------
 
+ai_sessions = {}
+
+
+def remove_background_ai(image, model="u2netp"):
+    # Import rembg only when we actually use the AI option.
+    # This keep normal Pillow mode faster to start.
+    from rembg import new_session, remove
+
+    # model_name = which AI brain we want to use.
+    # u2netp is small and good for our first AI test.
+
+    # If this AI brain is not loaded yet, load it one time.
+    if model not in ai_sessions:
+        print(f"Loading AI model: {model}")
+        ai_sessions[model] = new_session(model)
+
+    session = ai_sessions[model]
+
+    rgba_image = image.convert("RGBA")
+
+    # AI look at whole picture and guess what is foreground/background.
+    result = remove(rgba_image, session=session)
+
+    return result
+
+#----------------------------------------------ai shit---------------------------------------
 def remove_background(image, threshold=85):
 
     # Make the image use RGBA colours
