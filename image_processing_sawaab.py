@@ -14,7 +14,7 @@ def remove_background(image):
     background_colour = image.getpixel((0, 0))
     print("Starting pixel", background_colour)
 
-    # threshold = how different a colour is allowed to be.
+    # threshold = how different a colour is allowed to be
     # Small number only remove colours super close to the background
     # Big number remove more colours but it can eat the character too
     threshold = 85
@@ -57,7 +57,7 @@ def remove_background(image):
             # Flood fill start at this position
             # It move into touching pixels with close colours
             # value is the new colour we give those background pixels
-            # (0, 0, 0, 0) mean black but fully invisible
+            # 0000 mean black but fully invisible
             ImageDraw.floodfill(
                 image,
                 xy=position,
