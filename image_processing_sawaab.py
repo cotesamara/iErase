@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw, ImageFilter
 
 
-def remove_background(image):
+def remove_background(image, threshold=85):
 
     # Make the image use RGBA colours
     # R is red G = green, B = blue and A which is alpha istransparency
@@ -12,12 +12,11 @@ def remove_background(image):
     # We are guessing top left is part of the white background
     #we need to make this a var later or update it to be more dynamic for different gifs
     background_colour = image.getpixel((0, 0))
-    print("Starting pixel", background_colour)
 
     # threshold = how different a colour is allowed to be
     # Small number only remove colours super close to the background
     # Big number remove more colours but it can eat the character too
-    threshold = 85
+    # 85 is the normal value, but other file can give us a different number
 
     # width her eis how many pixels go left to right
     # height here is how many pixels go top to bottom its the easiest way to find size of the image
