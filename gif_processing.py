@@ -1,7 +1,7 @@
 
 
 from PIL import Image
-from image_processing import remove_background
+from image_processing_sawaab import remove_background
 
 # Open our gif uisng the thingy u found 
 gif = Image.open("assets/sample.gif")
@@ -19,6 +19,6 @@ frame = gif.convert("RGBA")
 result = remove_background(frame)
 
 # save the processed frame as a PNG
-result.save("outputs/first_frame.png")
+result.save("outputs/sawaab_test_frame.png")
 
-print("1st frame processed gang gang!")
+print("worked")
