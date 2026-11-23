@@ -21,3 +21,5 @@ write
 and then u will see 
 "Background removed successfully!"
 inshallalh 
+# How to use
+# What we learned
