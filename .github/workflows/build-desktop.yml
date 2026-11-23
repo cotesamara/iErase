@@ -2,6 +2,9 @@ name: Build desktop release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - Sawaab_Connecetor
 
 permissions:
   contents: read
