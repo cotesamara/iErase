@@ -19,7 +19,16 @@ from PIL import Image
 import sys
 from uuid import uuid4
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QMovie, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import (
+    QColor,
+    QImage,
+    QImageReader,
+    QMovie,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication, 
     QButtonGroup,
@@ -63,13 +72,16 @@ class CheckerboardCanvas(QWidget):
 
         if path.lower().endswith(".gif"):
             movie = QMovie(path)
-            movie.setCacheMode(QMovie.CacheAll)
-            # Scale the GIF smoothly to fit inside the preview box
-            movie.jumpToFrame(0)
-            orig_size = movie.currentImage().size()
+
+            # Read the full GIF canvas without loading/caching frame 0 first.
+            # Every frame must use one fixed size or the preview can look like
+            # it zooms when the animation loops back to the first frame.
+            orig_size = QImageReader(path).size()
             if not orig_size.isEmpty():
                 scaled = orig_size.scaled(QSize(265, 210), Qt.KeepAspectRatio)
                 movie.setScaledSize(scaled)
+
+            movie.setCacheMode(QMovie.CacheAll)
             self._movie = movie
             self.media_label.setMovie(movie)
             movie.start()
