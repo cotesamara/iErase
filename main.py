@@ -11,6 +11,7 @@
 
 #print("Background removed successfully!")
 import math
+import os
 import random
 import shutil
 import tempfile
@@ -43,6 +44,21 @@ from PySide6.QtWidgets import (
     QVBoxLayout, 
     QWidget,
     )
+
+
+def bundled_path(relative_path=""):
+    """Find a project file both in source code and inside the packaged app."""
+    if getattr(sys, "frozen", False):
+        base_path = Path(sys._MEIPASS)
+    else:
+        base_path = Path(__file__).resolve().parent
+    return base_path / relative_path
+
+
+# The packaged app carries its own u2net model so AI works without internet.
+if getattr(sys, "frozen", False):
+    os.environ["REMBG_HOME"] = str(bundled_path())
+
 
 from processing_worker import ProcessingWorker
 
@@ -1072,9 +1088,10 @@ class IEraseApp(QMainWindow):
         # Loads an image, trims empty clear space around it, and scales it cleanly
         label = QLabel()
         label.setContentsMargins(0, 0, 0, 0)
+        picture_path = bundled_path(path)
 
         try:
-            pil_img = Image.open(path).convert("RGBA")
+            pil_img = Image.open(picture_path).convert("RGBA")
             bbox = pil_img.getbbox()
             if bbox:
                 pil_img = pil_img.crop(bbox)
@@ -1082,7 +1099,7 @@ class IEraseApp(QMainWindow):
             qimg = QImage(data, pil_img.width, pil_img.height, QImage.Format_RGBA8888)
             pixmap = QPixmap.fromImage(qimg)
         except Exception:
-            pixmap = QPixmap(path)
+            pixmap = QPixmap(str(picture_path))
 
         if not pixmap.isNull():
             label.setPixmap(pixmap.scaledToHeight(height, Qt.SmoothTransformation))
