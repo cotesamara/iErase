@@ -58,7 +58,7 @@ class FlowerSlider(QWidget):
             self.update()  # Redraw the flower at its new spot
 
     def y_to_number(self, y: float) -> int:
-        # Turn the mouse position into a slider number
+        # Turn the mouse's up-and-down position into a slider number
         pad = 16.0
         track_height = self.height() - 2 * pad
         percent = 1.0 - max(0.0, min(1.0, (y - pad) / track_height))
@@ -161,7 +161,6 @@ class ThresholdBar(QWidget):
         self.setFixedWidth(68)
 
         layout = QVBoxLayout(self)
-        # Push it down so it lines up next to the upload box
         layout.setContentsMargins(0, 52, 0, 0)
         layout.setSpacing(4)
         layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
@@ -487,6 +486,7 @@ class FallingPetals(QWidget):
         ]
 
         self.petals = [self.make_petal(random_y=True) for _ in range(count)]
+        self.burst_petals = []  # Extra celebration petals thrown at 100%
 
         # Update the petal positions roughly 60 times a second
         self.timer = QTimer(self)
@@ -510,6 +510,29 @@ class FallingPetals(QWidget):
             "color": random.choice(self.petal_colors),
         }
 
+    def celebrate_burst(self, origin: QPointF | None = None, amount: int = 55):
+        # Throw a joyful fountain of cherry blossom petals when progress hits 100%
+        cx = origin.x() if origin is not None else self.width() / 2.0
+        cy = origin.y() if origin is not None else self.height() * 0.45
+
+        for _ in range(amount):
+            # Shoot mostly upward and outward like confetti
+            launch_angle = random.uniform(-math.pi * 0.88, -math.pi * 0.12)
+            speed = random.uniform(4.5, 11.5)
+            self.burst_petals.append({
+                "x": cx + random.uniform(-90, 90),
+                "y": cy + random.uniform(-20, 20),
+                "vx": math.cos(launch_angle) * speed,
+                "vy": math.sin(launch_angle) * speed,
+                "gravity": random.uniform(0.14, 0.24),
+                "drag": 0.985,
+                "size": random.uniform(8, 15),
+                "angle": random.uniform(0, 360),
+                "spin": random.uniform(-6.0, 6.0),
+                "sway_phase": random.uniform(0, math.tau),
+                "color": random.choice(self.petal_colors),
+            })
+
     def move_petals(self):
         # Gently drift and spin each petal downward
         w = self.width()
@@ -524,7 +547,37 @@ class FallingPetals(QWidget):
             if p["y"] > h + 20 or p["x"] < -30 or p["x"] > w + 30:
                 p.update(self.make_petal(random_y=False))
 
+        # Move any celebration burst petals and remove them once they fall off screen
+        still_flying = []
+        for bp in self.burst_petals:
+            bp["vx"] *= bp["drag"]
+            bp["vy"] = bp["vy"] * bp["drag"] + bp["gravity"]
+            bp["sway_phase"] += 0.08
+            bp["x"] += bp["vx"] + math.sin(bp["sway_phase"]) * 0.6
+            bp["y"] += bp["vy"]
+            bp["angle"] = (bp["angle"] + bp["spin"]) % 360
+
+            if bp["y"] <= h + 30 and -40 <= bp["x"] <= w + 40:
+                still_flying.append(bp)
+        self.burst_petals = still_flying
+
         self.update()  # Redraw all petals
+
+    def _draw_single_petal(self, painter: QPainter, p: dict):
+        painter.save()
+        painter.translate(p["x"], p["y"])
+        painter.rotate(p["angle"])
+        painter.setBrush(p["color"])
+
+        # Draw a curved petal shape
+        s = p["size"]
+        path = QPainterPath()
+        path.moveTo(0, -s * 0.6)
+        path.cubicTo(s * 0.65, -s * 0.25, s * 0.55, s * 0.55, 0, s * 0.7)
+        path.cubicTo(-s * 0.55, s * 0.55, -s * 0.65, -s * 0.25, 0, -s * 0.6)
+        painter.drawPath(path)
+
+        painter.restore()
 
     def paintEvent(self, event):
         # Draw each petal on the screen
@@ -533,20 +586,10 @@ class FallingPetals(QWidget):
         painter.setPen(Qt.NoPen)
 
         for p in self.petals:
-            painter.save()
-            painter.translate(p["x"], p["y"])
-            painter.rotate(p["angle"])
-            painter.setBrush(p["color"])
+            self._draw_single_petal(painter, p)
 
-            # Draw a curved petal shape
-            s = p["size"]
-            path = QPainterPath()
-            path.moveTo(0, -s * 0.6)
-            path.cubicTo(s * 0.65, -s * 0.25, s * 0.55, s * 0.55, 0, s * 0.7)
-            path.cubicTo(-s * 0.55, s * 0.55, -s * 0.65, -s * 0.25, 0, -s * 0.6)
-            painter.drawPath(path)
-
-            painter.restore()
+        for bp in self.burst_petals:
+            self._draw_single_petal(painter, bp)
 
 
 class IEraseApp(QMainWindow):
@@ -621,7 +664,7 @@ class IEraseApp(QMainWindow):
         self.loading_card.hide()  # Hidden until the user clicks "Remove Background"
         center_stack.addWidget(self.loading_card, alignment=Qt.AlignCenter)
 
-        center_stack.addSpacing(29)
+        center_stack.addSpacing(28)
         actions_row = QHBoxLayout()
         actions_row.setSpacing(12)
 
@@ -765,6 +808,10 @@ class IEraseApp(QMainWindow):
             self._demo_timer.stop()
             self.remove_btn.setEnabled(True)
             self.download_btn.setEnabled(True)
+            box_center = self.drop_zone.mapTo(
+                self.centralWidget(), self.drop_zone.rect().center()
+            )
+            self.petal_overlay.celebrate_burst(origin=QPointF(box_center))
 
     def save_file(self):
         # Opens a save window when the user clicks "Download"
