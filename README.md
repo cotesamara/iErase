@@ -15,6 +15,11 @@
 
 ---
 
+## 🌷 About
+
+iErase is a small team project made to make background removal feel easy and friendly.
+Upload a picture or GIF, remove its background, preview the result, and save it.
+
 ## ✨ What can iErase do?
 
 - Remove backgrounds from GIFs, PNGs, JPGs, and JPEGs
@@ -23,13 +28,13 @@
 - Preview the transparent result inside the app
 - Download the finished picture or GIF
 
-## 🌷 The app
+## 🌸 The app
 
 <p align="center">
   <img src="assets/Image%20of%20the%20main%20app%20.png" alt="The iErase main screen" width="800">
 </p>
 
-## 🌸 How to run it
+## 🌱 How to run it
 
 Open PowerShell inside the project folder, then create the virtual environment:
 
@@ -57,7 +62,7 @@ python main.py
 
 > The AI model may take a little longer the first time it runs. 🌱
 
-## 💗 Using iErase
+## 💗 How to use
 
 1. Pick **Pillow** or **AI** mode.
 2. Upload or drag in your picture or GIF.
@@ -70,6 +75,11 @@ python main.py
 <p align="center">
   <img src="assets/Image%20of%20the%20results%20using%20the%20apop%20.png" alt="A transparent GIF result shown in iErase" width="800">
 </p>
+
+## 🌼 What we learned
+
+We learned how to work together with Git branches, process animated GIF frames,
+connect background-removal code to a desktop interface, and turn an idea into a working app.
 
 <p align="center">
   Made with Python, Pillow, rembg, PySide6, and lots of pink petals. 🌸
