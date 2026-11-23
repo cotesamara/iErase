@@ -1038,8 +1038,6 @@ class IEraseApp(QMainWindow):
             label.setStyleSheet("color: #9E7B88; font-size: 12px;")
         return label
 
-
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = IEraseApp()
