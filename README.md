@@ -22,4 +22,5 @@ and then u will see
 "Background removed successfully!"
 inshallalh 
 # How to use
+# About 
 # What we learned
