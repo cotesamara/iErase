@@ -621,7 +621,7 @@ class IEraseApp(QMainWindow):
         self.loading_card.hide()  # Hidden until the user clicks "Remove Background"
         center_stack.addWidget(self.loading_card, alignment=Qt.AlignCenter)
 
-        center_stack.addSpacing(12)
+        center_stack.addSpacing(29)
         actions_row = QHBoxLayout()
         actions_row.setSpacing(12)
 
