@@ -18,8 +18,8 @@ from pathlib import Path
 from PIL import Image
 import sys
 from uuid import uuid4
-from PySide6.QtCore import QPointF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QImage, QMovie, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication, 
     QButtonGroup,
@@ -38,12 +38,161 @@ from PySide6.QtWidgets import (
 from processing_worker import ProcessingWorker
 
 
+class CheckerboardCanvas(QWidget):
+    """Displays an image or animated GIF on top of a pastel transparency checkerboard."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(290, 235)
+        self._movie = None
+        self._pixmap = None
+
+        # Inner label that holds either the animated GIF movie or static picture
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setAlignment(Qt.AlignCenter)
+
+        self.media_label = QLabel()
+        self.media_label.setAlignment(Qt.AlignCenter)
+        self.media_label.setStyleSheet("background: transparent; border: none;")
+        layout.addWidget(self.media_label)
+
+    def show_file(self, path: str):
+        # Stop any old GIF animation first
+        self.clear_preview()
+
+        if path.lower().endswith(".gif"):
+            movie = QMovie(path)
+            movie.setCacheMode(QMovie.CacheAll)
+            # Scale the GIF smoothly to fit inside the preview box
+            movie.jumpToFrame(0)
+            orig_size = movie.currentImage().size()
+            if not orig_size.isEmpty():
+                scaled = orig_size.scaled(QSize(265, 210), Qt.KeepAspectRatio)
+                movie.setScaledSize(scaled)
+            self._movie = movie
+            self.media_label.setMovie(movie)
+            movie.start()
+        else:
+            pix = QPixmap(path)
+            if not pix.isNull():
+                self._pixmap = pix.scaled(
+                    265, 210, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+                self.media_label.setPixmap(self._pixmap)
+            else:
+                self.media_label.setText("Could not load preview")
+
+    def clear_preview(self):
+        # Clean up any active movie or picture when the preview closes
+        if self._movie is not None:
+            self._movie.stop()
+            self._movie = None
+        self._pixmap = None
+        self.media_label.clear()
+
+    def paintEvent(self, event):
+        # Draw a soft pastel pink & white checkerboard to show clear backgrounds
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        clip = QPainterPath()
+        clip.addRoundedRect(0, 0, self.width(), self.height(), 14, 14)
+        painter.setClipPath(clip)
+
+        tile = 14
+        light = QColor("#FFFFFF")
+        tint = QColor("#F8E8EB")
+
+        for y in range(0, self.height(), tile):
+            for x in range(0, self.width(), tile):
+                is_even = ((x // tile) + (y // tile)) % 2 == 0
+                painter.fillRect(x, y, tile, tile, light if is_even else tint)
+
+        painter.setClipping(False)
+        painter.setPen(QPen(QColor("#E3B8C1"), 1.2))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(0.5, 0.5, self.width() - 1, self.height() - 1, 14, 14)
+
+
+class PreviewCard(QFrame):
+    """Left-side split-screen preview box with a top-right 'X' button to close it."""
+
+    closed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("PreviewCard")
+        self.setFixedWidth(322)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 16)
+        layout.setSpacing(10)
+
+        # Header row: "Preview" label on the left, circular "X" close button on the right
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+
+        self.header_title = QLabel("Preview")
+        self.header_title.setStyleSheet(
+            "font-size: 14px; font-weight: bold; color: #8A5A66; background: transparent; border: none;"
+        )
+
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setCursor(Qt.PointingHandCursor)
+        self.close_btn.setFixedSize(26, 26)
+        self.close_btn.setToolTip("Close preview")
+        self.close_btn.clicked.connect(self.close_panel)
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(195, 144, 155, 0.25);
+                color: #8A5A66;
+                font-size: 13px;
+                font-weight: bold;
+                border: none;
+                border-radius: 13px;
+            }
+            QPushButton:hover {
+                background-color: #C3909B;
+                color: #FFFFFF;
+            }
+        """)
+
+        header_row.addWidget(self.header_title)
+        header_row.addStretch()
+        header_row.addWidget(self.close_btn)
+        layout.addLayout(header_row)
+
+        # Checkerboard image/GIF preview area
+        self.canvas = CheckerboardCanvas()
+        layout.addWidget(self.canvas, alignment=Qt.AlignCenter)
+
+        self.setStyleSheet("""
+            #PreviewCard {
+                background-color: rgba(255, 255, 255, 0.65);
+                border: 2px dashed #C3909B;
+                border-radius: 18px;
+            }
+        """)
+
+    def open_with_file(self, path: str):
+        # Load the finished image/GIF into the preview and show the split-screen panel
+        self.canvas.show_file(path)
+        self.show()
+
+    def close_panel(self):
+        # Hide the preview panel and return to the centered single-column layout
+        self.canvas.clear_preview()
+        self.hide()
+        self.closed.emit()
+
+
 class FlowerSlider(QWidget):
     """Vertical slider with a pink cherry blossom flower you can drag up and down."""
 
     value_changed = Signal(int)
 
-    def __init__(self, minimum=1, maximum=80, value=22, parent=None):
+    def __init__(self, minimum=1, maximum=255, value=22, parent=None):
         super().__init__(parent)
         self.minimum = minimum
         self.maximum = maximum
@@ -168,6 +317,7 @@ class ThresholdBar(QWidget):
         self.setFixedWidth(68)
 
         layout = QVBoxLayout(self)
+        # Push it down slightly so it lines up next to the upload box
         layout.setContentsMargins(0, 52, 0, 0)
         layout.setSpacing(4)
         layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
@@ -190,7 +340,7 @@ class ThresholdBar(QWidget):
             padding: 1px 6px;
         """)
 
-        self.slider = FlowerSlider(minimum=1, maximum=80, value=initial_value)
+        self.slider = FlowerSlider(minimum=1, maximum=255, value=initial_value)
         self.slider.value_changed.connect(self.update_number)
 
         layout.addWidget(self.title_label, alignment=Qt.AlignCenter)
@@ -215,7 +365,7 @@ class ModePicker(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ModePill")
-        self.setFixedSize(560, 46)
+        self.setFixedSize(500, 46)
         self.current_mode = "solid"
 
         layout = QHBoxLayout(self)
@@ -280,7 +430,7 @@ class LoadingBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("LoadingCard")
-        self.setFixedWidth(560)
+        self.setFixedWidth(500)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 8, 4, 2)
@@ -382,7 +532,7 @@ class UploadBox(QFrame):
         self.setObjectName("DropZone")
         self.setAcceptDrops(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedSize(560, 195)
+        self.setFixedSize(500, 195)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
@@ -502,7 +652,7 @@ class FallingPetals(QWidget):
 
     def make_petal(self, random_y=False):
         # Create one petal with random size, speed, sway, and pink shade
-        w = max(self.width(), 900)
+        w = max(self.width(), 980)
         h = max(self.height(), 620)
         return {
             "x": random.uniform(0, w),
@@ -603,7 +753,7 @@ class IEraseApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("iErase")
-        self.resize(900, 620)
+        self.resize(980, 620)
         self.selected_file_path = None
         self.processed_file_path = None
         self.processing_worker = None
@@ -645,16 +795,22 @@ class IEraseApp(QMainWindow):
         #MIDDLE ROW
         main_layout.addStretch(1)
 
-        # Horizontal row holding the left spacer, main upload stack, and right threshold slider
+        # Horizontal row holding the split-screen preview card on the left and controls on the right
         center_row = QHBoxLayout()
-        center_row.setContentsMargins(0, 0, 0, 0)
-        center_row.setSpacing(12)
+        center_row.setContentsMargins(24, 0, 24, 0)
+        center_row.setSpacing(18)
         center_row.addStretch()
 
-        # Empty spacer on the left to balance the threshold slider on the right
-        left_spacer = QWidget()
-        left_spacer.setFixedWidth(68)
-        center_row.addWidget(left_spacer)
+        # Empty spacer on the left to balance the threshold slider when preview is closed
+        self.left_spacer = QWidget()
+        self.left_spacer.setFixedWidth(68)
+        center_row.addWidget(self.left_spacer)
+
+        # Split-screen preview panel on the left (opens at 100% and closes with X or new file)
+        self.preview_card = PreviewCard()
+        self.preview_card.hide()
+        self.preview_card.closed.connect(self.on_preview_closed)
+        center_row.addWidget(self.preview_card, alignment=Qt.AlignTop)
 
         # Vertical stack for the mode toggle, upload box, loading bar, and action buttons
         center_stack = QVBoxLayout()
@@ -681,7 +837,7 @@ class IEraseApp(QMainWindow):
         self.remove_btn = QPushButton("Remove Background")
         self.remove_btn.setEnabled(False)
         self.remove_btn.setCursor(Qt.PointingHandCursor)
-        self.remove_btn.setFixedSize(330, 44)
+        self.remove_btn.setFixedSize(295, 44)
         self.remove_btn.clicked.connect(self.start_erasing)
         self.remove_btn.setStyleSheet("""
             QPushButton {
@@ -713,7 +869,7 @@ class IEraseApp(QMainWindow):
         self.download_btn = QPushButton("Download")
         self.download_btn.setEnabled(False)
         self.download_btn.setCursor(Qt.PointingHandCursor)
-        self.download_btn.setFixedSize(218, 44)
+        self.download_btn.setFixedSize(193, 44)
         self.download_btn.clicked.connect(self.save_file)
         self.download_btn.setStyleSheet("""
             QPushButton {
@@ -739,7 +895,7 @@ class IEraseApp(QMainWindow):
         actions_row.addWidget(self.download_btn)
 
         actions_container = QWidget()
-        actions_container.setFixedWidth(560)
+        actions_container.setFixedWidth(500)
         actions_layout = QHBoxLayout(actions_container)
         actions_layout.setContentsMargins(0, 0, 0, 0)
         actions_layout.addLayout(actions_row)
@@ -754,6 +910,7 @@ class IEraseApp(QMainWindow):
         self.threshold_control = ThresholdBar(initial_value=22)
         self.threshold_control.threshold_changed.connect(self.threshold_moved)
         center_row.addWidget(self.threshold_control, alignment=Qt.AlignTop)
+
         center_row.addStretch()
 
         main_layout.addLayout(center_row)
@@ -779,6 +936,15 @@ class IEraseApp(QMainWindow):
             }
         """)
 
+    def open_preview_split(self, preview_path: str):
+        # Hide the left balancing spacer so the split view centers cleanly across the window
+        self.left_spacer.hide()
+        self.preview_card.open_with_file(preview_path)
+
+    def on_preview_closed(self):
+        # Restore the left spacer so the upload box re-centers when the preview is closed
+        self.left_spacer.show()
+
     def threshold_moved(self, value: int):
         # Runs whenever the user drags the flower threshold slider
         print("Threshold:", value)
@@ -790,6 +956,11 @@ class IEraseApp(QMainWindow):
         self.remove_btn.setEnabled(True)
         self.download_btn.setEnabled(False)
         self.loading_card.hide()
+
+        # Automatically close the preview panel if a new file is chosen
+        if self.preview_card.isVisible():
+            self.preview_card.close_panel()
+
         print("Selected file:", path)
 
     def start_erasing(self):
@@ -830,6 +1001,10 @@ class IEraseApp(QMainWindow):
         self.remove_btn.setEnabled(True)
         self.download_btn.setEnabled(True)
         self.set_input_controls_enabled(True)
+
+        # Show Samara's preview with the real processed file.
+        self.open_preview_split(output_path)
+
         box_center = self.drop_zone.mapTo(
             self.centralWidget(), self.drop_zone.rect().center()
         )
@@ -903,8 +1078,6 @@ class IEraseApp(QMainWindow):
             label.setText(f"[{path}]")
             label.setStyleSheet("color: #9E7B88; font-size: 12px;")
         return label
-
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
