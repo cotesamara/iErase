@@ -36,6 +36,7 @@ def process_gif(
     threshold=85,
     method="pillow",
     model="u2netp",
+    progress_callback=None,
 ):
     # input_path = where the old GIF is.
     # output_path = where we want the new GIF to save.
@@ -97,6 +98,11 @@ def process_gif(
                     # Pillow mode use our colour threshold method.
                     cleaned_frame = remove_background(rgba_frame, threshold)
                 processed_frames.append(cleaned_frame)
+
+                # Tell the app how many frames are done.
+                # Terminal tests can leave progress_callback empty.
+                if progress_callback is not None:
+                    progress_callback(frame_number + 1, total_frames)
 
     # Pillow use this error when the file is not a real image.
     except UnidentifiedImageError as error:

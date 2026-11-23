@@ -12,8 +12,12 @@
 #print("Background removed successfully!")
 import math
 import random
+import shutil
+import tempfile
+from pathlib import Path
 from PIL import Image
 import sys
+from uuid import uuid4
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QMovie, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
@@ -24,11 +28,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel, 
     QMainWindow, 
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QVBoxLayout, 
     QWidget,
     )
+
+from processing_worker import ProcessingWorker
 
 
 class CheckerboardCanvas(QWidget):
@@ -749,6 +756,7 @@ class IEraseApp(QMainWindow):
         self.resize(980, 620)
         self.selected_file_path = None
         self.processed_file_path = None
+        self.processing_worker = None
 
         #create widget and name it
         central_widget = QWidget()
@@ -959,44 +967,69 @@ class IEraseApp(QMainWindow):
         # Runs when the user clicks "Remove Background"
         if not self.selected_file_path:
             return
+        method = "ai" if self.mode_selector.current_mode == "ai" else "pillow"
+        input_path = Path(self.selected_file_path)
+        output_suffix = ".gif" if input_path.suffix.lower() == ".gif" else ".png"
+        output_path = Path(tempfile.gettempdir()) / f"ierase_{uuid4().hex}{output_suffix}"
+
         print(
-            f"Running mode: {self.mode_selector.current_mode} "
+            f"Running mode: {method} "
             f"(thresh={self.threshold_control.value}) on {self.selected_file_path}"
         )
         self.remove_btn.setEnabled(False)
         self.download_btn.setEnabled(False)
+        self.set_input_controls_enabled(False)
         self.loading_card.start_loading()
 
-        # Fake loading timer for testing the progress bar look
-        self._demo_val = 0
-        self._demo_timer = QTimer(self)
-        self._demo_timer.timeout.connect(self.update_fake_progress)
-        self._demo_timer.start(35)
+        # The worker keeps slow AI processing away from the window thread.
+        self.processing_worker = ProcessingWorker(
+            input_path=input_path,
+            output_path=output_path,
+            method=method,
+            threshold=self.threshold_control.value,
+            model="u2net",
+            parent=self,
+        )
+        self.processing_worker.progress_changed.connect(self.loading_card.set_percent)
+        self.processing_worker.processing_finished.connect(self.processing_complete)
+        self.processing_worker.processing_failed.connect(self.processing_error)
+        self.processing_worker.start()
 
-    def update_fake_progress(self):
-        # Moves the loading bar forward until it hits 100%
-        self._demo_val += 2
-        self.loading_card.set_percent(self._demo_val)
-        if self._demo_val >= 100:
-            self._demo_timer.stop()
-            self.remove_btn.setEnabled(True)
-            self.download_btn.setEnabled(True)
+    def processing_complete(self, output_path: str):
+        self.processed_file_path = output_path
+        self.loading_card.set_percent(100)
+        self.remove_btn.setEnabled(True)
+        self.download_btn.setEnabled(True)
+        self.set_input_controls_enabled(True)
 
-            # Open the split-screen preview on the left (swap in processed_file_path once backend is wired)
-            preview_target = self.processed_file_path or self.selected_file_path
-            if preview_target:
-                self.open_preview_split(preview_target)
+        # Show Samara's preview with the real processed file.
+        self.open_preview_split(output_path)
 
-            box_center = self.drop_zone.mapTo(
-                self.centralWidget(), self.drop_zone.rect().center()
-            )
-            self.petal_overlay.celebrate_burst(origin=QPointF(box_center))
+        box_center = self.drop_zone.mapTo(
+            self.centralWidget(), self.drop_zone.rect().center()
+        )
+        self.petal_overlay.celebrate_burst(origin=QPointF(box_center))
+
+    def processing_error(self, message: str):
+        self.processed_file_path = None
+        self.loading_card._dot_timer.stop()
+        self.loading_card.status_label.setText("Could not remove background")
+        self.remove_btn.setEnabled(True)
+        self.download_btn.setEnabled(False)
+        self.set_input_controls_enabled(True)
+        QMessageBox.critical(self, "Background Removal Error", message)
+
+    def set_input_controls_enabled(self, enabled: bool):
+        # Do not let the selected file or mode change halfway through a job.
+        self.drop_zone.setEnabled(enabled)
+        self.mode_selector.setEnabled(enabled)
+        self.threshold_control.setEnabled(enabled)
 
     def save_file(self):
         # Opens a save window when the user clicks "Download"
-        if not self.selected_file_path:
+        if not self.processed_file_path:
             return
-        is_gif = self.selected_file_path.lower().endswith(".gif")
+        is_gif = self.processed_file_path.lower().endswith(".gif")
         default_name = "iErase_output.gif" if is_gif else "iErase_output.png"
         file_filter = "GIF Animation (*.gif)" if is_gif else "PNG Image (*.png)"
 
@@ -1007,7 +1040,15 @@ class IEraseApp(QMainWindow):
             file_filter,
         )
         if save_path:
-            print("Saved to:", save_path)
+            try:
+                shutil.copy2(self.processed_file_path, save_path)
+                print("Saved to:", save_path)
+            except OSError as error:
+                QMessageBox.critical(
+                    self,
+                    "Save Error",
+                    f"Could not save the finished file:\n{error}",
+                )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
