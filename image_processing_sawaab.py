@@ -15,7 +15,6 @@ def remove_background_ai(image, model="u2netp"):
 
     # If this AI brain is not loaded yet, load it one time.
     if model not in ai_sessions:
-        print(f"Loading AI model: {model}")
         ai_sessions[model] = new_session(model)
 
     session = ai_sessions[model]

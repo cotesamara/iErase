@@ -11,6 +11,7 @@
 
 #print("Background removed successfully!")
 import math
+import os
 import random
 import shutil
 import tempfile
@@ -21,6 +22,7 @@ from uuid import uuid4
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
+    QIcon,
     QImage,
     QImageReader,
     QMovie,
@@ -44,7 +46,39 @@ from PySide6.QtWidgets import (
     QWidget,
     )
 
+
+def bundled_path(relative_path=""):
+    """Find a project file both in source code and inside the packaged app."""
+    if getattr(sys, "frozen", False):
+        base_path = Path(sys._MEIPASS)
+    else:
+        base_path = Path(__file__).resolve().parent
+    return base_path / relative_path
+
+
+# The packaged app carries its own u2net model so AI works without internet.
+if getattr(sys, "frozen", False):
+    os.environ["REMBG_HOME"] = str(bundled_path())
+    # PyInstaller does not give numba a normal source-file location. The app
+    # does not use pymatting's optional JIT path, so disable it in packages.
+    os.environ["NUMBA_DISABLE_JIT"] = "1"
+
+
 from processing_worker import ProcessingWorker
+
+
+def run_ai_smoke_test():
+    """Check that the packaged AI and bundled u2net model can run."""
+    marker_path = Path(tempfile.gettempdir()) / "ierase-ai-smoke-test.txt"
+    marker_path.write_text("starting\n", encoding="utf-8")
+    from image_processing_sawaab import remove_background_ai
+
+    marker_path.write_text("rembg imported\n", encoding="utf-8")
+    test_image = Image.new("RGBA", (64, 64), "white")
+    result = remove_background_ai(test_image, model="u2net")
+    marker_path.write_text("model completed\n", encoding="utf-8")
+    if result.size != test_image.size:
+        raise RuntimeError("AI smoke test returned the wrong image size.")
 
 
 class CheckerboardCanvas(QWidget):
@@ -1072,9 +1106,10 @@ class IEraseApp(QMainWindow):
         # Loads an image, trims empty clear space around it, and scales it cleanly
         label = QLabel()
         label.setContentsMargins(0, 0, 0, 0)
+        picture_path = bundled_path(path)
 
         try:
-            pil_img = Image.open(path).convert("RGBA")
+            pil_img = Image.open(picture_path).convert("RGBA")
             bbox = pil_img.getbbox()
             if bbox:
                 pil_img = pil_img.crop(bbox)
@@ -1082,7 +1117,7 @@ class IEraseApp(QMainWindow):
             qimg = QImage(data, pil_img.width, pil_img.height, QImage.Format_RGBA8888)
             pixmap = QPixmap.fromImage(qimg)
         except Exception:
-            pixmap = QPixmap(path)
+            pixmap = QPixmap(str(picture_path))
 
         if not pixmap.isNull():
             label.setPixmap(pixmap.scaledToHeight(height, Qt.SmoothTransformation))
@@ -1092,7 +1127,19 @@ class IEraseApp(QMainWindow):
         return label
 
 if __name__ == "__main__":
+    if "--ai-smoke-test" in sys.argv:
+        try:
+            run_ai_smoke_test()
+        except BaseException as error:
+            marker_path = Path(tempfile.gettempdir()) / "ierase-ai-smoke-test.txt"
+            marker_path.write_text(f"failed: {error}\n", encoding="utf-8")
+            os._exit(1)
+        # ONNX may leave worker threads alive after the test. End immediately
+        # once the model has returned a valid image so CI does not hang.
+        os._exit(0)
+
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(str(bundled_path("assets/iEraseIcon.png"))))
     window = IEraseApp()
     window.show()
     sys.exit(app.exec())

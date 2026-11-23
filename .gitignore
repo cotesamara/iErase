@@ -6,6 +6,11 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
+# PyInstaller build folders
+build/
+dist/
+release/
+
 # Generated output files (keep the directory)
 outputs/*
 !outputs/.gitkeep

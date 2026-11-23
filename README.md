@@ -62,6 +62,24 @@ python main.py
 
 > The AI model may take a little longer the first time it runs. 🌱
 
+### 🎁 Build the Windows app
+
+Install the build package:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+```
+
+Build iErase:
+
+```powershell
+.\build_exe.ps1
+```
+
+Open `release\iErase\iErase.exe` when the build finishes. Keep the whole
+`release\iErase` folder together when you share the app. The AI model is
+included, so the finished app can remove backgrounds without downloading it.
+
 ## 💗 How to use
 
 1. Pick **Pillow** or **AI** mode.
